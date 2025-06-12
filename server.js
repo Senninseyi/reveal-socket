@@ -4,7 +4,7 @@ const socketIo = require("socket.io");
 const mysql = require("mysql2/promise");
 const cors = require("cors");
 const Redis = require("ioredis");
-const OneSignal = require("onesignal-node");
+const OneSignal = require("@onesignal/node-onesignal");
 const config = require("./config");
 const multer = require("multer");
 const path = require("path");
@@ -60,11 +60,6 @@ const io = socketIo(server, {
     methods: ["GET", "POST"],
   },
 });
-
-const oneSignalClient = new OneSignal.Client(
-  config.onesignal.appId,
-  config.onesignal.restApiKey
-);
 
 app.use(cors());
 app.use(express.json());
@@ -126,6 +121,22 @@ const USER_SOCKET_KEY = "user_socket:";
 const USER_DEVICE_KEY = "user_device:";
 const USER_TOKEN_KEY = "user_token:";
 
+const configuration = OneSignal.createConfiguration({
+  organizationApiKey: config.onesignal.organisationKey,
+  restApiKey: config.onesignal.restApiKey,
+});
+
+const client = new OneSignal.DefaultApi(configuration);
+
+(async () => {
+  try {
+    const onesignalapp = await client.getApp(config.onesignal.appId);
+    console.log(onesignalapp, "ONESIGNAL APP DETAILS");
+  } catch (error) {
+    console.error("Error retrieving OneSignal app details:", error);
+  }
+})();
+
 const authenticateSocket = async (socket, next) => {
   try {
     const userId = socket.handshake.headers.userid;
@@ -157,27 +168,39 @@ const verifyUserAuthorization = async (socket, userId) => {
   return true;
 };
 
-async function sendPushNotification(userId, title, message, data = {}) {
+async function sendPushNotificationAdjusted(userId, title, message, data = {}) {
   try {
     console.log(
       `[OneSignal] Attempting to send notification to user ${userId}`
     );
-    const deviceToken = await redis.get(`${USER_DEVICE_KEY}${userId}`);
-    console.log(deviceToken, "USER DEVICE TOKEN FOR:", userId);
+    const deviceData = await redis.get(`${USER_DEVICE_KEY}${userId}`);
+    console.log(deviceData, "USER DEVICE DATA FOR:", userId);
 
-    if (deviceToken) {
+    if (deviceData) {
       console.log(`[OneSignal] Found device token for user ${userId}`);
-      const notification = {
-        include_player_ids: [deviceToken],
-        headings: { en: title },
-        contents: { en: message },
-        data: data,
-        android_channel_id: "chat_notifications",
-        ios_badgeType: "Increase",
-        ios_badgeCount: 1,
-      };
 
-      const response = await oneSignalClient.createNotification(notification);
+      const { deviceToken, subscriptionId } = JSON.parse(deviceData);
+
+      const notification = new OneSignal.Notification();
+      notification.app_id = config.onesignal.appId;
+      notification.name = `notification_${Date.now()}`;
+      notification.contents = {
+        en: message,
+      };
+      notification.headings = {
+        en: title,
+      };
+      notification.data = data;
+
+      if (subscriptionId) {
+        notification.include_subscription_ids = [subscriptionId];
+      } else if (deviceToken) {
+        notification.include_subscription_ids = [deviceToken];
+      } else {
+        notification.included_segments = ["Test Users"];
+      }
+
+      const response = await client.createNotification(notification);
       console.log(`[OneSignal] Notification sent successfully:`, response);
     } else {
       console.log(`[OneSignal] No device token found for user ${userId}`);
@@ -194,11 +217,16 @@ io.on("connection", async (socket) => {
 
   socket.on("register_device", async (data) => {
     try {
-      const { deviceToken } = data;
+      const { deviceToken, subscriptionId } = data;
       await verifyUserAuthorization(socket, socket.userId);
 
       console.log(`[Socket.IO] Registering device for user ${socket.userId}`);
-      await redis.set(`${USER_DEVICE_KEY}${socket.userId}`, deviceToken);
+
+      const payload = { deviceToken, subscriptionId };
+      await redis.set(
+        `${USER_DEVICE_KEY}${socket.userId}`,
+        JSON.stringify(payload)
+      );
       console.log(
         `[Socket.IO] Device registered successfully for user ${socket.userId}`
       );
@@ -366,9 +394,16 @@ io.on("connection", async (socket) => {
       // Send to recipient if they're online
       if (recipientSocketId) {
         io.to(recipientSocketId).emit("receive_message", responseData);
+
+        await sendPushNotificationAdjusted(
+          numericRecipientId,
+          `New message from ${sender[0].alias}`,
+          message || "Sent an attachment",
+          { messageId: result.insertId }
+        );
       } else {
         // Send push notification if recipient is offline
-        await sendPushNotification(
+        await sendPushNotificationAdjusted(
           numericRecipientId,
           `New message from ${sender[0].alias}`,
           message || "Sent an attachment",
