@@ -10,13 +10,11 @@ const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
 
-// Create uploads directory if it doesn't exist
 const uploadsDir = path.join(__dirname, "uploads");
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
-// Configure multer for file uploads
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     cb(null, uploadsDir);
@@ -33,7 +31,7 @@ const storage = multer.diskStorage({
 const upload = multer({
   storage: storage,
   limits: {
-    fileSize: 20 * 1024 * 1024, // 20MB limit
+    fileSize: 20 * 1024 * 1024,
   },
   fileFilter: function (req, file, cb) {
     const allowedTypes = [
@@ -165,6 +163,7 @@ async function sendPushNotification(userId, title, message, data = {}) {
       `[OneSignal] Attempting to send notification to user ${userId}`
     );
     const deviceToken = await redis.get(`${USER_DEVICE_KEY}${userId}`);
+    console.log(deviceToken, "USER DEVICE TOKEN FOR:", userId);
 
     if (deviceToken) {
       console.log(`[OneSignal] Found device token for user ${userId}`);
@@ -369,12 +368,12 @@ io.on("connection", async (socket) => {
         io.to(recipientSocketId).emit("receive_message", responseData);
       } else {
         // Send push notification if recipient is offline
-        // await sendPushNotification(
-        //   numericRecipientId,
-        //   `New message from ${sender[0].alias}`,
-        //   message || "Sent an attachment",
-        //   { messageId: result.insertId }
-        // );
+        await sendPushNotification(
+          numericRecipientId,
+          `New message from ${sender[0].alias}`,
+          message || "Sent an attachment",
+          { messageId: result.insertId }
+        );
       }
     } catch (error) {
       console.error("[Socket.IO] Error sending message:", error);
