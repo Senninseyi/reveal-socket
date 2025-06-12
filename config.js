@@ -3,8 +3,8 @@ const config = {
   database: {
     host: "134.199.218.64",
     port: 3306,
-    user: "prod_reveal_user", // XAMPP default username
-    password: "RevealApp#@YP", // XAMPP default password is empty
+    user: "prod_reveal_user",
+    password: "RevealApp#@YP",
     database: "prod_reveal_app",
     waitForConnections: true,
     connectionLimit: 10,
@@ -22,6 +22,8 @@ const config = {
   },
   onesignal: {
     appId: "ef1dcc05-bbd6-4407-be77-1c01faf3ef14",
+    organisationKey:
+      "os_v2_org_l5uhef5ytndmfn63zftxrilht2vfxcdl2mlukb5f2dndsodxlnmun7szb4tdvl3cfxpppy2ky6iuwulbods6z3sglcynbsgkbnpgi7q",
     restApiKey:
       "os_v2_app_54o4ybn32zcapptxdqa7v47pcs5jp2ebgdrukuvwjeeh3xmd6jxakwraouaoozlppfog47f76l7ludernnbk73esa3pkfmamhf5thla",
   },
