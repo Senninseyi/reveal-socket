@@ -179,6 +179,18 @@ async function sendPushNotificationAdjusted(userId, title, message, data = {}) {
     if (deviceData) {
       console.log(`[OneSignal] Found device token for user ${userId}`);
 
+      let parsedData;
+      try {
+        parsedData = JSON.parse(deviceData);
+      } catch (parseError) {
+        console.error(
+          "[OneSignal] Error parsing device data from Redis:",
+          deviceData,
+          parseError
+        );
+        return; // Exit the function if JSON is invalid
+      }
+
       const { deviceToken, subscriptionId } = JSON.parse(deviceData);
 
       const notification = new OneSignal.Notification();
