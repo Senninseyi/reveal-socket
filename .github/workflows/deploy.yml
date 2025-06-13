@@ -22,7 +22,7 @@ jobs:
     - name: Deploy to server
       run: |
         ssh root@143.110.225.104 << 'EOF'
-          cd ~/reveal-socket
+          cd /root/reveal-socket
           git pull origin main
           npm install
           pm2 restart reveal-socket
