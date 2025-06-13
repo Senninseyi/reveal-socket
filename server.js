@@ -190,7 +190,7 @@ async function sendPushNotificationAdjusted(userId, title, message, data = {}) {
       };
       notification.data = data;
 
-      if (subscriptionId) {
+      if (deviceToken) {
         notification.include_subscription_ids = [deviceToken];
       } else if (deviceToken) {
         notification.include_subscription_ids = [deviceToken];
