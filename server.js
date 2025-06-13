@@ -173,25 +173,11 @@ async function sendPushNotificationAdjusted(userId, title, message, data = {}) {
     console.log(
       `[OneSignal] Attempting to send notification to user ${userId}`
     );
-    const deviceData = await redis.get(`${USER_DEVICE_KEY}${userId}`);
-    console.log(deviceData, "USER DEVICE DATA FOR:", userId);
+    const deviceToken = await redis.get(`${USER_DEVICE_KEY}${userId}`);
+    console.log(deviceToken, "USER DEVICE TOKEN FOR:", userId);
 
-    if (deviceData) {
+    if (deviceToken) {
       console.log(`[OneSignal] Found device token for user ${userId}`);
-
-      let parsedData;
-      try {
-        parsedData = JSON.parse(deviceData);
-      } catch (parseError) {
-        console.error(
-          "[OneSignal] Error parsing device data from Redis:",
-          deviceData,
-          parseError
-        );
-        return; // Exit the function if JSON is invalid
-      }
-
-      const { deviceToken, subscriptionId } = JSON.parse(deviceData);
 
       const notification = new OneSignal.Notification();
       notification.app_id = config.onesignal.appId;
@@ -205,7 +191,7 @@ async function sendPushNotificationAdjusted(userId, title, message, data = {}) {
       notification.data = data;
 
       if (subscriptionId) {
-        notification.include_subscription_ids = [subscriptionId];
+        notification.include_subscription_ids = [deviceToken];
       } else if (deviceToken) {
         notification.include_subscription_ids = [deviceToken];
       } else {
@@ -229,16 +215,12 @@ io.on("connection", async (socket) => {
 
   socket.on("register_device", async (data) => {
     try {
-      const { deviceToken, subscriptionId } = data;
+      const { deviceToken } = data;
       await verifyUserAuthorization(socket, socket.userId);
 
       console.log(`[Socket.IO] Registering device for user ${socket.userId}`);
 
-      const payload = { deviceToken, subscriptionId };
-      await redis.set(
-        `${USER_DEVICE_KEY}${socket.userId}`,
-        JSON.stringify(payload)
-      );
+      await redis.set(`${USER_DEVICE_KEY}${socket.userId}`, deviceToken);
       console.log(
         `[Socket.IO] Device registered successfully for user ${socket.userId}`
       );
